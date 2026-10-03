@@ -1,0 +1,34 @@
+{
+  "configurations": [
+    {
+      "inheritEnvironments": [
+        "linux_wsl"
+      ],
+      "name": "WSL-GCC-Debug",
+      "includePath": [
+        "${workspaceRoot}/include",
+        "/usr/include",
+        "/usr/local/include"
+      ],
+      "defines": [
+        "_DEBUG"
+      ],
+      "compilerSwitches": "-std=c11 -g -O0"
+    },
+    {
+      "inheritEnvironments": [
+        "linux_wsl"
+      ],
+      "name": "WSL-GCC-Release",
+      "includePath": [
+        "${workspaceRoot}/include",
+        "/usr/include",
+        "/usr/local/include"
+      ],
+      "defines": [
+        "NDEBUG"
+      ],
+      "compilerSwitches": "-std=c11 -O2"
+    }
+  ]
+}
