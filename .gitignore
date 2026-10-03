@@ -1,0 +1,17 @@
+# Служебные файлы Visual Studio
+.vs/
+*.user
+*.suo
+*.userosv
+*.sln.docstates
+
+# Папки сборки
+x64/
+x86/
+Debug/
+Release/
+bin/
+obj/
+
+# Результаты выполнения проекта
+results/*.csv
