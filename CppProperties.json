@@ -1,34 +1,40 @@
 {
   "configurations": [
     {
-      "inheritEnvironments": [
-        "linux_wsl"
-      ],
       "name": "WSL-GCC-Debug",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "c11",
+      "intelliSenseMode": "linux-gcc-x64",
+      "inheritEnvironments": [
+        "linux_wsl_x64"
+      ],
       "includePath": [
         "${workspaceRoot}/include",
-        "/usr/include",
-        "/usr/local/include"
+        "\\\\wsl.localhost\\Ubuntu\\usr\\include",
+        "\\\\wsl.localhost\\Ubuntu\\usr\\include\\x86_64-linux-gnu"
       ],
       "defines": [
         "_DEBUG"
       ],
-      "compilerSwitches": "-std=c11 -g -O0"
+      "compilerSwitches": "-g -O0"
     },
     {
-      "inheritEnvironments": [
-        "linux_wsl"
-      ],
       "name": "WSL-GCC-Release",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "c11",
+      "intelliSenseMode": "linux-gcc-x64",
+      "inheritEnvironments": [
+        "linux_wsl_x64"
+      ],
       "includePath": [
         "${workspaceRoot}/include",
-        "/usr/include",
-        "/usr/local/include"
+        "\\\\wsl.localhost\\Ubuntu\\usr\\include",
+        "\\\\wsl.localhost\\Ubuntu\\usr\\include\\x86_64-linux-gnu"
       ],
       "defines": [
         "NDEBUG"
       ],
-      "compilerSwitches": "-std=c11 -O2"
+      "compilerSwitches": "-O2"
     }
   ]
 }
