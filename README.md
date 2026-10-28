@@ -1,2 +1,3 @@
 # Bison-rescue
-Тема: Ситуаційний моніторинг субпопуляцій зубра європейського в заказниках України (варіант «Порятунок зубрів»).
+
+Situational monitoring of European bison subpopulations in Ukrainian reserves ("Bison Rescue").

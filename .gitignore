@@ -1,11 +1,11 @@
-# Служебные файлы Visual Studio
+# Visual Studio files
 .vs/
 *.user
 *.suo
 *.userosv
 *.sln.docstates
 
-# Папки сборки
+# Build directories
 x64/
 x86/
 Debug/
@@ -13,10 +13,10 @@ Release/
 bin/
 obj/
 
-# Результаты выполнения проекта
+# Result artifacts
 results/*.csv
 
-# Скомпилированные файлы
+# Compiled binaries
 bison_rescue
 test_ipc
 mock_sender

@@ -34,10 +34,10 @@ int main(void) {
     // 4. Send sample ObservationData
     ObservationData sample1;
     memset(&sample1, 0, sizeof(sample1));
-    strncpy(sample1.observing_personname, "Тестовий_Еколог_1", sizeof(sample1.observing_personname) - 1);
-    strncpy(sample1.territory_name, "Гори Тернополя", sizeof(sample1.territory_name) - 1);
+    strncpy(sample1.observing_personname, "Test_Ecologist_1", sizeof(sample1.observing_personname) - 1);
+    strncpy(sample1.territory_name, "Ternopil Mountains", sizeof(sample1.territory_name) - 1);
     sample1.bison_number = 7;
-    set_bison_age(sample1.bison_age, sizeof(sample1.bison_age), "дорослий");
+    set_bison_age(sample1.bison_age, sizeof(sample1.bison_age), "adult");
     strncpy(sample1.observation_time, "2026-10-28 14:30:00", sizeof(sample1.observation_time) - 1);
 
     rc = send_observation(writer_fd, &sample1);
@@ -46,10 +46,10 @@ int main(void) {
 
     ObservationData sample2;
     memset(&sample2, 0, sizeof(sample2));
-    strncpy(sample2.observing_personname, "Тестовий_Еколог_2", sizeof(sample2.observing_personname) - 1);
-    strncpy(sample2.territory_name, "Житомирська федерація", sizeof(sample2.territory_name) - 1);
+    strncpy(sample2.observing_personname, "Test_Ecologist_2", sizeof(sample2.observing_personname) - 1);
+    strncpy(sample2.territory_name, "Zhytomyr Federation", sizeof(sample2.territory_name) - 1);
     sample2.bison_number = 3;
-    set_bison_age(sample2.bison_age, sizeof(sample2.bison_age), "молодий");
+    set_bison_age(sample2.bison_age, sizeof(sample2.bison_age), "young");
     strncpy(sample2.observation_time, "2026-10-28 14:31:15", sizeof(sample2.observation_time) - 1);
 
     rc = send_observation(writer_fd, &sample2);

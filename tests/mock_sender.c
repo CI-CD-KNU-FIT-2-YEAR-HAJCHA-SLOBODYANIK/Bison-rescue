@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
 
     printf("[Mock Sender] Connected! Sending %d sample observations...\n", count);
 
-    const char *ages[] = {"дорослий", "молодий", "старий"};
+    const char *ages[] = {"adult", "young", "old"};
 
     for (int i = 0; i < count; i++) {
         ObservationData obs;

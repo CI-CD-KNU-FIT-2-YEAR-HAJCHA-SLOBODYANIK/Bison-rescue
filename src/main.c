@@ -9,7 +9,7 @@
 #include "ipc_queue.h"
 
 int main(int argc, char* argv[]) {
-    // Начальная инициализация значений по умолчанию ДО цикла getopt
+    // Default variable initialization BEFORE the getopt loop
     int n_expeditions = 0;
     int session_time = 0;
     int opt;
@@ -23,27 +23,27 @@ int main(int argc, char* argv[]) {
                 session_time = atoi(optarg);
                 break;
             default:
-                fprintf(stderr, "Использование: %s -n <N_экспедиций> -t <T_время_сессии_сек>\n", argv[0]);
+                fprintf(stderr, "Usage: %s -n <N_expeditions> -t <T_session_time_sec>\n", argv[0]);
                 return 1;
         }
     }
 
     if (n_expeditions <= 0 || session_time <= 0) {
-        fprintf(stderr, "Использование: %s -n <N_экспедиций> -t <T_время_сессии_сек>\n", argv[0]);
+        fprintf(stderr, "Usage: %s -n <N_expeditions> -t <T_session_time_sec>\n", argv[0]);
         return 1;
     }
 
-    printf("[Main] Запуск системы: %d экспедиций, время работы %d сек\n", n_expeditions, session_time);
+    printf("[Main] Starting system: %d expeditions, session duration %d sec\n", n_expeditions, session_time);
 
-    int mq = init_queue_reader();  // инициализация очереди на чтение
+    int mq = init_queue_reader();  // Initialize message queue for reading
     if (mq == -1) {
-        fprintf(stderr, "[Main] Ошибка создания очереди сообщений\n");
+        fprintf(stderr, "[Main] Error initializing message queue\n");
         return 1;
     }
 
     FILE* csv = fopen("results/observations.csv", "w");
     if (!csv) {
-        perror("Ошибка открытия results/observations.csv");
+        perror("[Main] Error opening results/observations.csv");
         cleanup_queue(mq);
         return 1;
     }
@@ -53,17 +53,17 @@ int main(int argc, char* argv[]) {
 
     pid_t* pids = malloc(sizeof(pid_t) * n_expeditions);
     if (!pids) {
-        perror("malloc pids error");
+        perror("[Main] malloc pids error");
         fclose(csv);
         cleanup_queue(mq);
         return 1;
     }
 
     for (int i = 0; i < n_expeditions; i++) {
-        int pipefd[2]; // pipefd[0] чтение | pipefd[1] запись
+        int pipefd[2]; // pipefd[0] read | pipefd[1] write
 
         if (pipe(pipefd) == -1) {
-            perror("pipe error");
+            perror("[Main] pipe error");
             free(pids);
             fclose(csv);
             cleanup_queue(mq);
@@ -71,35 +71,37 @@ int main(int argc, char* argv[]) {
         }
         pid_t pid = fork();
 
-        if (pid == 0) { // дочерний процесс
+        if (pid == 0) { // Child process
             
-            // Ребенок не будет писать в pipe, поэтому закрываем дескриптор записи
+            // Child will not write to pipe, close write descriptor
             close(pipefd[1]);
 
             char name_buf[64];
-            snprintf(name_buf, sizeof(name_buf), "Наблюдатель_%d", i + 1);
+            snprintf(name_buf, sizeof(name_buf), "Observer_%d", i + 1);
 
             run_expedition(pipefd[0], name_buf);
 
             exit(0);
         }
-        else if (pid > 0) {  // родительский процесс
+        else if (pid > 0) {  // Parent process
             
-            // Родитель не будет читать из pipe, поэтому закрываем дескриптор чтения
+            // Parent will not read from pipe, close read descriptor
             close(pipefd[0]);
 
             pids[i] = pid;
 
             const char* loc = LOCATIONS[i % NUM_LOCATIONS];
 
-            write(pipefd[1], loc, strlen(loc) + 1);
+            if (write(pipefd[1], loc, strlen(loc) + 1) == -1) {
+                perror("[Main] write to pipe error");
+            }
 
-            // Закрываем дескриптор записи
+            // Close write descriptor
             close(pipefd[1]);
 
         }
         else {
-            perror("fork error");
+            perror("[Main] fork error");
             free(pids);
             fclose(csv);
             cleanup_queue(mq);
@@ -110,11 +112,11 @@ int main(int argc, char* argv[]) {
     time_t start_time = time(NULL);
     ObservationData obs;
 
-    while (time(NULL) - start_time < session_time) {  // работаем session_time секунд
+    while (time(NULL) - start_time < session_time) {  // Run for session_time seconds
 
         if (receive_observation(mq, &obs) == 0) {
 
-            printf("[Main] Запис від %s (%s): %d зубр(ів), %.*s, %s\n",
+            printf("[Main] Entry from %s (%s): %d bison(s), %.*s, %s\n",
                 obs.observing_personname, obs.territory_name, obs.bison_number,
                 (int)sizeof(obs.bison_age), obs.bison_age, obs.observation_time);
 
@@ -129,11 +131,11 @@ int main(int argc, char* argv[]) {
             fflush(csv);
         }
         else {
-            usleep(100000); // 100мс ждем
+            usleep(100000); // 100 ms wait
         }
     }
 
-    printf("[Main] Время сессии истекло. Остановка процессов...\n");
+    printf("[Main] Session time elapsed. Terminating processes...\n");
 
     for (int i = 0; i < n_expeditions; i++) {
         kill(pids[i], SIGTERM);
@@ -141,9 +143,9 @@ int main(int argc, char* argv[]) {
     }
     free(pids);
 
-    // Довычитываем оставшиеся в очереди сообщения перед выходом
+    // Drain any remaining messages in the queue before shutdown
     while (receive_observation(mq, &obs) == 0) {
-        printf("[Main] Фінальний запис від %s (%s): %d зубр(ів)\n",
+        printf("[Main] Final entry from %s (%s): %d bison(s)\n",
             obs.observing_personname, obs.territory_name, obs.bison_number);
 
         fprintf(csv, "%s,%s,%s,%d,%.*s\n",
@@ -160,6 +162,6 @@ int main(int argc, char* argv[]) {
     fclose(csv);
     cleanup_queue(mq);
 
-    printf("[Main] Работа завершена. Данные в results/observations.csv\n");
+    printf("[Main] Execution completed. Data saved to results/observations.csv\n");
     return 0;
 }

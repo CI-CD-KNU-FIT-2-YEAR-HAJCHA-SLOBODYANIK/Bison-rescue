@@ -17,15 +17,15 @@ static void handle_sigterm(int sig) {
 void run_expedition(int read_pipe_fd, const char* observer_name) {
     char location_buf[MAX_LOC_LEN] = { 0 };
 
-    // Читаем локацию из pipe, отправленную из main.c
+    // Read assigned location from pipe sent by main.c
     ssize_t bytes = read(read_pipe_fd, location_buf, sizeof(location_buf) - 1);
     close(read_pipe_fd);
 
     if (bytes <= 0) {
-        snprintf(location_buf, sizeof(location_buf), "Невідома територія");
+        snprintf(location_buf, sizeof(location_buf), "Unknown territory");
     }
 
-    printf("[Expedition] %s заступив на локацію: %s\n", observer_name, location_buf);
+    printf("[Expedition] %s deployed to location: %s\n", observer_name, location_buf);
 
     signal(SIGTERM, handle_sigterm);
 
@@ -35,12 +35,12 @@ void run_expedition(int read_pipe_fd, const char* observer_name) {
         return;
     }
 
-    const char *ages[] = {"дорослий", "молодий", "старий"};
+    const char *ages[] = {"adult", "young", "old"};
     unsigned int seed = (unsigned int)(time(NULL) ^ (getpid() << 4));
     int obs_counter = 0;
 
     while (g_running) {
-        // Интервал генерации наблюдений (1-2 секунды)
+        // Observation generation interval (1-2 seconds)
         sleep(1);
         if (!g_running) break;
 
@@ -63,11 +63,11 @@ void run_expedition(int read_pipe_fd, const char* observer_name) {
         strftime(obs.observation_time, sizeof(obs.observation_time), "%Y-%m-%d %H:%M:%S", &tm_buf);
 
         if (send_observation(mq, &obs) == 0) {
-            printf("[Expedition] %s надіслав звіт #%d з %s: %d зубр(ів)\n",
+            printf("[Expedition] %s sent report #%d from %s: %d bison(s)\n",
                 observer_name, obs_counter, location_buf, obs.bison_number);
         }
     }
 
     close(mq);
-    printf("[Expedition] %s завершив роботу.\n", observer_name);
+    printf("[Expedition] %s completed work.\n", observer_name);
 }
