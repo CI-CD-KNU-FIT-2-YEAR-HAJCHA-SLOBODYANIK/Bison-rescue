@@ -9,6 +9,7 @@
 #include "ipc_queue.h"
 
 int main(int argc, char* argv[]) {
+    // Начальная инициализация значений по умолчанию ДО цикла getopt
     int n_expeditions = 0;
     int session_time = 0;
     int opt;
@@ -25,14 +26,6 @@ int main(int argc, char* argv[]) {
                 fprintf(stderr, "Использование: %s -n <N_экспедиций> -t <T_время_сессии_сек>\n", argv[0]);
                 return 1;
         }
-    }
-
-    // Поддержка позиционных аргументов для обратной совместимости
-    if (n_expeditions <= 0 && optind < argc) {
-        n_expeditions = atoi(argv[optind++]);
-    }
-    if (session_time <= 0 && optind < argc) {
-        session_time = atoi(argv[optind++]);
     }
 
     if (n_expeditions <= 0 || session_time <= 0) {
