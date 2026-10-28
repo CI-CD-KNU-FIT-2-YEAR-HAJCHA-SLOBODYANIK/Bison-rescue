@@ -1,98 +1,102 @@
-### Core Parameters and IPC
+### Базовые параметры и IPC
 
-* **Architectural Pattern:** Master-Worker (Main orchestrator process + $N$ expedition processes)
-* **POSIX Message Queue:** `/bison_queue` (maximum message size: `256` bytes)
-* **Data Exchange Mechanisms:**
-  * **Initialization:** Anonymous pipes (passing territory name from parent to child process).
-  * **Telemetry:** POSIX Message Queue (`mqueue.h`) for streaming structured observation reports from expeditions to parent.
-* **Output Format:** CSV file (`results/observations.csv`)
-* **Timestamp Format:** ISO-like local / UTC (`YYYY-MM-DD HH:MM:SS`)
-* **Process Management:** Signals (`SIGTERM` for stopping worker processes) and `waitpid()` system calls.
+- Архитектурный паттерн: Master-Worker (Главный процесс-оркестратор + $N$ процессов-экспедиций)
+- POSIX Message Queue: `/bison_queue` (максимальный размер сообщения: `256` байт)
+- Механизмы обмена данными:
+- **Инициализация:** Анонимные каналы `pipe` (передача названия территории от родителя ребенку).
+- **Телеметрия:** POSIX Message Queue (`mqueue.h`) для передачи структурированных отчетов от экспедиций родителю.
+
+- Формат выгрузки данных: CSV-файл (`results/observations.csv`)
+- Формат дат: ISO-подобный локальный / UTC (`YYYY-MM-DD HH:MM:SS`)
+- Управление процессами: Сигналы (`SIGTERM` для остановки рабочих процессов) и системный вызов `waitpid()`
 
 ---
 
-### 1. Build and Run
+### 1. Сборка и запуск
 
-The project is built using `Makefile`. Launching the executable requires CLI flags:
+Сборка проекта выполняется через `Makefile`, запуск бинарника требует передачи двух позиционных аргументов:
 
 ```bash
 make
-./bison_rescue -n <N_expeditions> -t <T_session_time_sec>
+./bison_rescue <N_экспедиций> <T_время_сессии_сек>
+
 ```
 
-#### CLI Parameters:
+#### Параметры CLI:
 
-* `-n <N_expeditions>` (`int`): Number of spawned observer processes ($N \ge 1$).
-* `-t <T_session_time_sec>` (`int`): Duration of data collection session in seconds ($T \ge 1$).
+- `argv[1]` — `N_экспедиций` (`int`): Количество порождаемых процессов-наблюдателей ($N \ge 1$).
+- `argv[2]` — `T_время_сессии_сек` (`int`): Длительность сессии сбора данных в секундах ($T \ge 1$).
 
 ---
 
-### 2. Output Artifacts
+### 2. Выходные артефакты
 
-* **Console Output (`stdout`):** System logs from `main.c` regarding process spawning, message receipt, and shutdown.
-* **Results File (`results/observations.csv`):** Streaming log of all incoming reports.
+- **Консольный вывод (`stdout`):** Системные логи `main.c` о создании процессов, получении пакетов и остановке.
+- **Файл результатов (`results/observations.csv`):** Потоковая запись поступающих отчетов.
 
-#### CSV File Format:
+#### Формат CSV-файла:
 
 ```csv
-Timestamp,Territory,Observer,Count,AgeGroup
-2026-10-28 15:00:00,Ternopil Mountains,Observer_1,3,adult
+Observer,Territory,Count,Age,Timestamp
+Наблюдатель_1,Горы Тернополя,3,дорослий,2026-10-12 01:30:00
+
 ```
 
 ---
 
-### 3. Shared Contract (`include/common.h`)
+### 3. Общий контракт (`include/common.h`)
 
-#### Report Structure (`ObservationData`)
+#### Структура отчета (`ObservationData`)
 
-Fixed structure for sending messages across the POSIX message queue:
+Единая фиксированная структура для передачи сообщений через POSIX-очередь:
 
 ```c
 typedef struct {
-    char observing_personname[64]; // Observer name ("Observer_1", "Observer_2"...)
-    char territory_name[64];       // Assigned territory name
-    int bison_number;              // Number of observed bisons
-    char bison_age[16];            // Age category ("young", "adult", "old")
-    char observation_time[32];     // Observation timestamp ("YYYY-MM-DD HH:MM:SS")
+    char observing_personname[64]; // Имя наблюдателя ("Наблюдатель_1", "Наблюдатель_2"...)
+    char territory_name[64];       // Название территории
+    int bison_number;              // Число обнаруженных особей
+    char bison_age[16];            // Возрастная категория ("молодий", "дорослий", "старий")
+    char observation_time[32];     // Время фиксации ("YYYY-MM-DD HH:MM:SS")
 } ObservationData;
+
 ```
 
-#### Datasets and IPC Interface
+#### Наборы данных и IPC-интерфейс
 
-* `LOCATIONS[]` / `NUM_LOCATIONS` — static array of territory names.
-* `int init_queue_reader(void)` — create/open `/bison_queue` for non-blocking reading in `main.c`.
-* `int init_queue_writer(void)` — connect to `/bison_queue` for writing from child processes.
-* `int send_observation(int mq_fd, const ObservationData *data)` — send an observation report structure.
-* `int receive_observation(int mq_fd, ObservationData *data)` — receive report structure from queue (returns `0` on success, `-1` when empty or error).
-* `void cleanup_queue(int mq_fd)` — close descriptor and unlink `/bison_queue` from `/dev/mqueue`.
-* `void run_expedition(int read_pipe_fd, const char *observer_name)` — child process entry point.
-
----
-
-### 4. Orchestrator Flow (`main.c`)
-
-1. Parses command-line flags `-n` and `-t`.
-2. Initializes the queue reader server (`init_queue_reader`).
-3. Creates/clears `results/observations.csv` and writes the CSV header.
-4. Spawns $N$ child processes:
-   * Creates an anonymous `pipe`.
-   * Calls `fork()`.
-   * **Parent:** Writes the territory name `LOCATIONS[i % NUM_LOCATIONS]` to `pipefd[1]`, closes `pipefd[1]`, and records the child PID.
-   * **Child:** Closes `pipefd[1]` and enters `run_expedition(pipefd[0], name_buf)`.
-5. Reads incoming reports from the queue via `receive_observation()` for $T$ seconds, flushing buffers to CSV immediately (`fflush`).
-6. After $T$ seconds, sends `SIGTERM` to all child PIDs, awaits termination with `waitpid()`, drains remaining queue messages, closes the CSV file, and invokes `cleanup_queue()`.
+- `LOCATIONS[]` / `NUM_LOCATIONS` — статический массив названий территорий.
+- `mqd_t ipc_server_init(void)` — создание/сброс очереди `/bison_queue` на чтение в `main.c`.
+- `mqd_t ipc_client_init(void)` — подключение к очереди на запись из дочернего процесса.
+- `int ipc_send_observation(mqd_t mqdes, const ObservationData *data)` — отправка структуры отчета.
+- `int ipc_receive_observation(mqd_t mqdes, ObservationData *data)` — вычитание структуры из очереди (возвращает `0` при успехе, `-1` если пусто).
+- `void ipc_close(mqd_t mqdes)` — закрытие дескриптора очереди.
+- `void ipc_unlink(void)` — физическое удаление очереди из `/dev/mqueue`.
+- `void run_expedition(int read_pipe_fd, const char *observer_name)` — точка входа дочернего процесса.
 
 ---
 
-### 5. Expedition Requirements (`src/expedition.c`)
+### 4. Порядок работы `main.c` и обязательства модулей
 
-* **Pipe Reading:** Read the assigned territory name from `read_pipe_fd` first and immediately close the descriptor with `close(read_pipe_fd)`.
-* **IPC Integration:** Connect to the queue via `init_queue_writer()` and send generated `ObservationData` structures via `send_observation()`.
-* **Termination:** Intercept `SIGTERM` signals and gracefully shut down, closing the queue descriptor.
+#### Что делает `main.c` (Оркестратор):
 
----
+1. Инициализирует сервер очереди (`ipc_server_init`).
+2. Создает/очищает `results/observations.csv` и записывает заголовок.
+3. В цикле от $0$ до $N-1$:
 
-### 6. Queue Requirements (`src/ipc_queue.c`)
+- Создает анонимный `pipe`.
+- Вызывает `fork()`.
+- **В родителе:** Пишет строковое название территории `LOCATIONS[i % NUM_LOCATIONS]` в `pipefd[1]`, закрывает `pipefd[1]` и сохраняет PID дочернего процесса.
+- **В ребенке:** Закрывает `pipefd[1]` и передает управление в `run_expedition(pipefd[0], name_buf)`.
 
-* Guarantee message size `mq_msgsize = sizeof(ObservationData)`.
-* Ensure non-blocking read (`O_NONBLOCK`) on the reader side so `main.c` does not block indefinitely when the queue is empty.
+4. Вычитывает отчеты из очереди через `ipc_receive_observation()` в течение $T$ секунд, сразу сбрасывая буфер в CSV (`fflush`).
+5. По истечении $T$ секунд отправляет `SIGTERM` всем дочерним PID, делает `waitpid()`, закрывает CSV, вызывает `ipc_close()` и `ipc_unlink()`.
+
+### 5. Обязательные требования к модулю экспедиции (`src/expedition.c`):
+
+- **Считывание из pipe:** Первым действием вычитать строку территории из `read_pipe_fd` и немедленно закрыть этот дескриптор вызовом `close(read_pipe_fd)`.
+- **Интеграция IPC:** Подключиться к очереди через `ipc_client_init()` и отправлять сформированные структуры `ObservationData` через `ipc_send_observation()`.
+- **Завершение:** Корректно перехватывать сигнал `SIGTERM` или обрабатывать завершение цикла, закрывая свой дескриптор очереди через `ipc_close()`.
+
+### 6. Обязательные требования к модулю очереди (`src/ipc_queue.c`):
+
+- Гарантировать размер сообщения `mq_msgsize = sizeof(ObservationData)`.
+- Обеспечить неблокирующее чтение (`O_NONBLOCK`) на стороне сервера, чтобы `main.c` не зависал при отсутствии сообщений.
