@@ -18,3 +18,5 @@ results/*.csv
 
 # Скомпилированные файлы
 bison_rescue
+test_ipc
+mock_sender

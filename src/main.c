@@ -100,15 +100,16 @@ int main(int argc, char* argv[]) {
 
         if (receive_observation(mq, &obs) == 0) {
 
-            printf("[Main] Запись от %s (%s): %d зубра(ов), %s, %s\n",
+            printf("[Main] Запис від %s (%s): %d зубр(ів), %.*s, %s\n",
                 obs.observing_personname, obs.territory_name, obs.bison_number,
-                obs.bison_age, obs.observation_time);
+                (int)sizeof(obs.bison_age), obs.bison_age, obs.observation_time);
 
-            fprintf(csv, "%s,%s,%s,%d,%s\n",
+            fprintf(csv, "%s,%s,%s,%d,%.*s\n",
                 obs.observation_time,
                 obs.territory_name,
                 obs.observing_personname,
                 obs.bison_number,
+                (int)sizeof(obs.bison_age),
                 obs.bison_age);
 
             fflush(csv);
@@ -128,14 +129,15 @@ int main(int argc, char* argv[]) {
 
     // Довычитываем оставшиеся в очереди сообщения перед выходом
     while (receive_observation(mq, &obs) == 0) {
-        printf("[Main] Финальная запись от %s (%s): %d зубра(ов)\n",
+        printf("[Main] Фінальний запис від %s (%s): %d зубр(ів)\n",
             obs.observing_personname, obs.territory_name, obs.bison_number);
 
-        fprintf(csv, "%s,%s,%s,%d,%s\n",
+        fprintf(csv, "%s,%s,%s,%d,%.*s\n",
             obs.observation_time,
             obs.territory_name,
             obs.observing_personname,
             obs.bison_number,
+            (int)sizeof(obs.bison_age),
             obs.bison_age);
 
         fflush(csv);
