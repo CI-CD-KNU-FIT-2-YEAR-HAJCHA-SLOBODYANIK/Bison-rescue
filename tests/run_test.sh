@@ -1,27 +1,17 @@
 #!/bin/sh
 set -e
 
-echo "=== Running Standalone Unit Tests ==="
+echo "=== 1. Running Standalone IPC Unit Tests ==="
 ./test_ipc
 
 echo ""
-echo "=== Running End-to-End Integration Test with Parent Process ==="
+echo "=== 2. Testing Argument Parsing and Full Data Flow (-n 3 -t 4) ==="
 
 # Clean previous csv if any
 rm -f results/observations.csv
 
-# Start bison_rescue in background for 3 seconds with 2 expeditions
-./bison_rescue 2 3 &
-MAIN_PID=$!
-
-# Wait briefly for main to initialize message queue and create results/observations.csv
-sleep 0.5
-
-# Send sample observations into queue using mock_sender
-./mock_sender 3
-
-# Wait for parent process to finish its session
-wait $MAIN_PID
+# Run bison_rescue with -n 3 -t 4
+./bison_rescue -n 3 -t 4
 
 echo ""
 echo "=== Checking results/observations.csv ==="
@@ -44,8 +34,21 @@ fi
 # Verify observation lines
 LINES_COUNT=$(wc -l < results/observations.csv | tr -d ' ')
 if [ "$LINES_COUNT" -lt 4 ]; then
-    echo "ERROR: Expected at least 4 lines (1 header + 3 data lines), got $LINES_COUNT"
+    echo "ERROR: Expected at least 4 lines (1 header + multiple observation lines), got $LINES_COUNT"
     exit 1
 fi
 
-echo "=== ALL INTEGRATION TESTS PASSED SUCCESSFULLY! ==="
+echo "=== 3. Testing Mock Sender with Parent Process ==="
+rm -f results/observations.csv
+./bison_rescue -n 1 -t 3 &
+PID=$!
+sleep 0.5
+./mock_sender 2
+wait $PID
+
+if [ ! -f results/observations.csv ]; then
+    echo "ERROR: results/observations.csv was not created during mock test!"
+    exit 1
+fi
+
+echo "=== ALL INTEGRATION AND FULL DATA FLOW TESTS PASSED SUCCESSFULLY! ==="

@@ -9,15 +9,36 @@
 #include "ipc_queue.h"
 
 int main(int argc, char* argv[]) {
+    int n_expeditions = 0;
+    int session_time = 0;
+    int opt;
 
-    // argv[0] = имя бинарника, argv[1] = N (число экспедиций), argv[2] = T (время сессии)
-    if (argc < 3) {
-        printf("Использование: %s <N_экспедиций> <T_время_сессии_сек>\n", argv[0]);
-        return 1;
+    while ((opt = getopt(argc, argv, "n:t:")) != -1) {
+        switch (opt) {
+            case 'n':
+                n_expeditions = atoi(optarg);
+                break;
+            case 't':
+                session_time = atoi(optarg);
+                break;
+            default:
+                fprintf(stderr, "Использование: %s -n <N_экспедиций> -t <T_время_сессии_сек>\n", argv[0]);
+                return 1;
+        }
     }
 
-    int n_expeditions = atoi(argv[1]);
-    int session_time = atoi(argv[2]);
+    // Поддержка позиционных аргументов для обратной совместимости
+    if (n_expeditions <= 0 && optind < argc) {
+        n_expeditions = atoi(argv[optind++]);
+    }
+    if (session_time <= 0 && optind < argc) {
+        session_time = atoi(argv[optind++]);
+    }
+
+    if (n_expeditions <= 0 || session_time <= 0) {
+        fprintf(stderr, "Использование: %s -n <N_экспедиций> -t <T_время_сессии_сек>\n", argv[0]);
+        return 1;
+    }
 
     printf("[Main] Запуск системы: %d экспедиций, время работы %d сек\n", n_expeditions, session_time);
 
@@ -65,7 +86,7 @@ int main(int argc, char* argv[]) {
             char name_buf[64];
             snprintf(name_buf, sizeof(name_buf), "Наблюдатель_%d", i + 1);
 
-            run_expedition(pipefd[0], name_buf);  // участник 2
+            run_expedition(pipefd[0], name_buf);
 
             exit(0);
         }
