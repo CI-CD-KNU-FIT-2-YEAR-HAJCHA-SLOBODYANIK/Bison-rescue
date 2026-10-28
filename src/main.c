@@ -6,6 +6,7 @@
 #include <time.h>   
 #include <sys/wait.h>  
 #include "common.h"   
+#include "ipc_queue.h"
 
 int main(int argc, char* argv[]) {
 
@@ -20,30 +21,43 @@ int main(int argc, char* argv[]) {
 
     printf("[Main] Запуск системы: %d экспедиций, время работы %d сек\n", n_expeditions, session_time);
 
-    mqd_t mq = ipc_server_init();  // участник 3 создает новую очередь в ядре Linux на чтение
+    int mq = init_queue_reader();  // инициализация очереди на чтение
+    if (mq == -1) {
+        fprintf(stderr, "[Main] Ошибка создания очереди сообщений\n");
+        return 1;
+    }
 
     FILE* csv = fopen("results/observations.csv", "w");
     if (!csv) {
         perror("Ошибка открытия results/observations.csv");
-        ipc_unlink();
+        cleanup_queue(mq);
         return 1;
     }
 
-    fprintf(csv, "Observer,Territory,Count,Age,Timestamp\n");
+    fprintf(csv, "Timestamp,Territory,Observer,Count,AgeGroup\n");
     fflush(csv);
 
     pid_t* pids = malloc(sizeof(pid_t) * n_expeditions);
+    if (!pids) {
+        perror("malloc pids error");
+        fclose(csv);
+        cleanup_queue(mq);
+        return 1;
+    }
 
     for (int i = 0; i < n_expeditions; i++) {
         int pipefd[2]; // pipefd[0] чтение | pipefd[1] запись
 
         if (pipe(pipefd) == -1) {
             perror("pipe error");
+            free(pids);
+            fclose(csv);
+            cleanup_queue(mq);
             exit(1);
         }
         pid_t pid = fork();
 
-		if (pid == 0) { // дочерний процесс
+        if (pid == 0) { // дочерний процесс
             
             // Ребенок не будет писать в pipe, поэтому закрываем дескриптор записи
             close(pipefd[1]);
@@ -51,11 +65,11 @@ int main(int argc, char* argv[]) {
             char name_buf[64];
             snprintf(name_buf, sizeof(name_buf), "Наблюдатель_%d", i + 1);
 
-            run_expedition(pipefd[0], name_buf);  // участник 2. будем надеяться он закрыл читателя...
+            run_expedition(pipefd[0], name_buf);  // участник 2
 
             exit(0);
         }
-		else if (pid > 0) {  // родительский процесс
+        else if (pid > 0) {  // родительский процесс
             
             // Родитель не будет читать из pipe, поэтому закрываем дескриптор чтения
             close(pipefd[0]);
@@ -72,6 +86,9 @@ int main(int argc, char* argv[]) {
         }
         else {
             perror("fork error");
+            free(pids);
+            fclose(csv);
+            cleanup_queue(mq);
             exit(1);
         }
     }
@@ -79,24 +96,26 @@ int main(int argc, char* argv[]) {
     time_t start_time = time(NULL);
     ObservationData obs;
 
-	while (time(NULL) - start_time < session_time) {  // работаем session_time секунд
+    while (time(NULL) - start_time < session_time) {  // работаем session_time секунд
 
-        if (ipc_receive_observation(mq, &obs) == 0) {
+        if (receive_observation(mq, &obs) == 0) {
 
-            printf("[Main] Запись от %s (%s): %d зубра(ов)\n",
-                obs.observing_personname, obs.territory_name, obs.bison_number);
+            printf("[Main] Запись от %s (%s): %d зубра(ов), %s, %s\n",
+                obs.observing_personname, obs.territory_name, obs.bison_number,
+                obs.bison_age, obs.observation_time);
 
-            fprintf(csv, "%s,%s,%d,%s,%s\n",
-                obs.observing_personname,
+            fprintf(csv, "%s,%s,%s,%d,%s\n",
+                obs.observation_time,
                 obs.territory_name,
+                obs.observing_personname,
                 obs.bison_number,
-                obs.bison_age,
-                obs.observation_time);
+                obs.bison_age);
 
             fflush(csv);
         }
-        else
+        else {
             usleep(100000); // 100мс ждем
+        }
     }
 
     printf("[Main] Время сессии истекло. Остановка процессов...\n");
@@ -107,9 +126,23 @@ int main(int argc, char* argv[]) {
     }
     free(pids);
 
+    // Довычитываем оставшиеся в очереди сообщения перед выходом
+    while (receive_observation(mq, &obs) == 0) {
+        printf("[Main] Финальная запись от %s (%s): %d зубра(ов)\n",
+            obs.observing_personname, obs.territory_name, obs.bison_number);
+
+        fprintf(csv, "%s,%s,%s,%d,%s\n",
+            obs.observation_time,
+            obs.territory_name,
+            obs.observing_personname,
+            obs.bison_number,
+            obs.bison_age);
+
+        fflush(csv);
+    }
+
     fclose(csv);
-    ipc_close(mq);  // творение участника 3 будет закрыто
-    ipc_unlink();  // и хлам тоже удаляем
+    cleanup_queue(mq);
 
     printf("[Main] Работа завершена. Данные в results/observations.csv\n");
     return 0;
