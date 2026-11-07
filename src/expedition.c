@@ -9,6 +9,7 @@
 
 static volatile sig_atomic_t g_running = 1;
 
+// Обробник сигналу від батьківського процесу
 static void handle_sigterm(int sig) {
     (void)sig;
     g_running = 0;
@@ -17,57 +18,23 @@ static void handle_sigterm(int sig) {
 void run_expedition(int read_pipe_fd, const char* observer_name) {
     char location_buf[MAX_LOC_LEN] = { 0 };
 
-    // Read assigned location from pipe sent by main.c
+    // Зчитуємо призначену територію з пайпу
     ssize_t bytes = read(read_pipe_fd, location_buf, sizeof(location_buf) - 1);
     close(read_pipe_fd);
 
     if (bytes <= 0) {
-        snprintf(location_buf, sizeof(location_buf), "Unknown territory");
+        snprintf(location_buf, sizeof(location_buf), "Невідома територія");
     }
 
-    printf("[Expedition] %s deployed to location: %s\n", observer_name, location_buf);
+    printf("[Експедиція] %s прибув на локацію: %s. Готовий до спостережень!\n", observer_name, location_buf);
 
+    // Реєструємо обробник сигналу завершення
     signal(SIGTERM, handle_sigterm);
 
-    int mq = init_queue_writer();
-    if (mq < 0) {
-        perror("[Expedition] Failed to open queue writer");
-        return;
-    }
-
-    const char *ages[] = {"adult", "young", "old"};
-    unsigned int seed = (unsigned int)(time(NULL) ^ (getpid() << 4));
-    int obs_counter = 0;
-
+    // Головний цикл життя процесу
     while (g_running) {
-        // Observation generation interval (1-2 seconds)
-        sleep(1);
-        if (!g_running) break;
-
-        obs_counter++;
-        ObservationData obs;
-        memset(&obs, 0, sizeof(obs));
-
-        strncpy(obs.observing_personname, observer_name, sizeof(obs.observing_personname) - 1);
-        strncpy(obs.territory_name, location_buf, sizeof(obs.territory_name) - 1);
-        obs.bison_number = (rand_r(&seed) % 8) + 1;
-
-        const char *chosen_age = ages[rand_r(&seed) % 3];
-        size_t age_len = strlen(chosen_age);
-        if (age_len > sizeof(obs.bison_age)) age_len = sizeof(obs.bison_age);
-        memcpy(obs.bison_age, chosen_age, age_len);
-
-        time_t now = time(NULL);
-        struct tm tm_buf;
-        localtime_r(&now, &tm_buf);
-        strftime(obs.observation_time, sizeof(obs.observation_time), "%Y-%m-%d %H:%M:%S", &tm_buf);
-
-        if (send_observation(mq, &obs) == 0) {
-            printf("[Expedition] %s sent report #%d from %s: %d bison(s)\n",
-                observer_name, obs_counter, location_buf, obs.bison_number);
-        }
+        sleep(1); // Тимчасова затримка
     }
 
-    close(mq);
-    printf("[Expedition] %s completed work.\n", observer_name);
+    printf("[Експедиція] %s втомлена, повертаємось на базу.\n", observer_name);
 }
