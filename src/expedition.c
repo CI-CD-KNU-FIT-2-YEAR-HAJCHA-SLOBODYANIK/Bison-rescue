@@ -31,6 +31,12 @@ void run_expedition(int read_pipe_fd, const char* observer_name) {
     // Реєструємо обробник сигналу завершення
     signal(SIGTERM, handle_sigterm);
 
+    int mq = init_queue_writer();
+    if (mq < 0) {
+        perror("[Експедиція] Помилка відкриття черги повідомлень");
+        return;
+    }
+
     const char *ages[] = {"adult", "young", "old"};
     unsigned int seed = (unsigned int)(time(NULL) ^ (getpid() << 4));
 
@@ -61,9 +67,12 @@ void run_expedition(int read_pipe_fd, const char* observer_name) {
         localtime_r(&now, &tm_buf);
         strftime(obs.observation_time, sizeof(obs.observation_time), "%Y-%m-%d %H:%M:%S", &tm_buf);
 
-        // Поки що просто виводимо в консоль
-        printf("[DEBUG] Згенеровано: %d зубрів (%s)\n", obs.bison_number, chosen_age);
+        if (send_observation(mq, &obs) == 0) {
+            printf("[Експедиція] %s передає звіт з локації '%s': помічено %d зубр(ів)\n",
+                observer_name, location_buf, obs.bison_number);
+        }
     }
 
+    close(mq);
     printf("[Експедиція] %s втомлена, повертаємось на базу.\n", observer_name);
 }
