@@ -16,6 +16,12 @@ static void handle_sigterm(int sig) {
 }
 
 void run_expedition(int read_pipe_fd, const char* observer_name) {
+    // Реєструємо обробник сигналу завершення
+    signal(SIGTERM, handle_sigterm);
+
+    //usleep(50000); // 50 мс йдемо на місце
+    kill(getppid(), SIGUSR1);  // Сигнал батьківському процесу про прибуття
+
     char location_buf[MAX_LOC_LEN] = { 0 };
 
     // Зчитуємо призначену територію з пайпу
@@ -25,6 +31,8 @@ void run_expedition(int read_pipe_fd, const char* observer_name) {
     if (bytes <= 0) {
         snprintf(location_buf, sizeof(location_buf), "Невідома територія");
     }
+
+    kill(getppid(), SIGUSR2);  // Сигнал батьківському процесу про готовність до роботи
 
     printf("[Експедиція] %s прибув на локацію: %s. Готовий до спостережень!\n", observer_name, location_buf);
 
