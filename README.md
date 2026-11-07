@@ -27,6 +27,7 @@ make
 # Перегляд результатів (файл observations.csv)
 
 cat results/observations.csv
+cat results/*_log.txt
 
 # Очищення після збірки
 
