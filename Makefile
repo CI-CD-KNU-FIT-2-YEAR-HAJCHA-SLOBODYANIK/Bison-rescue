@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c11 -Iinclude
+CFLAGS = -Wall -Wextra -std=gnu11 -Iinclude
 LDFLAGS = -lrt
 
 SRC = src/main.c src/expedition.c src/ipc_queue.c
